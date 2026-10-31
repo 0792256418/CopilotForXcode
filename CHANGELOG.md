@@ -5,6 +5,182 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.51.0 - August 12, 2026
+### Added
+- Support for Kimi K3 through the updated Copilot language server.
+- Agent Client Protocol (ACP) plugin metadata for GitHub Copilot.
+
+### Changed
+- Updated the Copilot language server from 1.488.0 to 1.523.3.
+- Updated the ACP plugin to use Copilot CLI 1.0.78.
+
+### Fixed
+- Fixed model pricing tooltips for the latest token pricing metadata.
+
+## 0.50.0 - May 20, 2026
+### Added
+- Reasoning effort control for supported models: Low, Medium, or High from the model picker to balance response speed and quality.
+- Added internal support for upcoming usage-based billing, including billing updates for the usage panel, usage notifications, and model picker. This will be visible to the user once usage-based billing rolls out.
+
+### Changed
+- Bring Your Own Key (BYOK) is now generally available.
+
+## 0.49.0 - May 15, 2026
+### Added
+- Native Anthropic Messages API (`/v1/messages`) endpoint support.
+- Thinking support in chat for reasoning-capable models.
+- Enhanced rate limit notifications and error messages.
+
+### Changed
+- Refined tool call item UI in agent progress: removed border and divider, repositioned chevron, and adjusted spacing for better readability.
+- Updated Copilot language server to 1.465.5.
+
+## 0.48.0 - April 23, 2026
+### Added
+- Context window usage details in chat, including a token breakdown for system instructions, messages, attached files, and tool results.
+- Auto Compress setting to compact conversation history and save context tokens.
+- Install flow for Xcode's built-in MCP server from settings.
+
+### Changed
+- Custom agents and the Auto model are now generally available.
+- Removed support for macOS 12.
+- Improved UI for model picker tooltips.
+
+### Fixed
+- Fixed an issue where GPT-5.4 requests could return a 400 error.
+- Fixed an issue where the MCP allowlist did not work correctly.
+
+## 0.47.0 - February 4, 2026
+### Added
+- Auto approval for MCP tools, sensitive files, and terminal commands.
+- MCP registry and allowlist are now available (requires editor preview feature flag).
+
+### Changed
+- Improved UI for MCP tool call details.
+- Improved UI for working set header.
+
+### Fixed
+- Fixed toolcall layout issue.
+- Fixed NES display issue.
+- Fixed error message for SSL certificate errors.
+- Fixed several performance issues.
+
+## 0.46.0 - December 11, 2025
+### Added
+- MCP: Support delete MCP server from list.
+
+### Changed
+- Refine built-in tools layout and displaying error and output details.
+- Better support toolCallingLoop continue operation for subagent turn.
+- Update feedback forum link.
+- Update client-side MCP restore and persist.
+- Adopt NES notification.
+
+### Fixed
+- Disable auto focus for fix error window.
+- Fixed an issue where no file change was made when insert_edit_into_file tool succeeds.
+- Fixed an issue where insert edit was applied to the incorrect file.
+- Fixed model picker to use model id instead of model family.
+- Fixed read_file, read_directory tool randomly failing.
+
+## 0.45.0 - November 14, 2025
+### Added
+- New models: GPT-5.1, GPT-5.1-Codex, GPT-5.1-Codex-Mini, Claude Haiku 4.5, and Auto (preview).
+- Added support for custom agents (preview).
+- Introduced the built-in Plan agent (preview).
+- Added support for subagent execution (preview).
+- Added support for Next Edit Suggestions (preview).
+
+### Changed
+- MCP servers now support dynamic OAuth setup for third-party authentication providers.
+- Added a setting to configure the maximum number of tool requests allowed.
+
+### Fixed
+- Fixed an issue that the terminal view in Agent conversation was clipped
+- Fixed an issue that the Chat panel failed to recognize newly created workspaces.
+
+## 0.44.0 - October 15, 2025
+### Added
+- Added support for new models in Chat: Grok Code Fast 1, Claude Sonnet 4.5, Claude Opus 4, Claude Opus 4.1 and GPT-5 mini.
+- Added support for restoring to a saved checkpoint snapshot.
+- Added support for tool selection in agent mode.
+- Added the ability to adjust the chat panel font size.
+- Added the ability to edit a previous chat message and resend it.
+- Introduced a new setting to disable the Copilot “Fix Error” button.
+- Added support for custom instructions in the Code Review feature.
+
+### Changed
+- Switched authentication to a new OAuth app "GitHub Copilot IDE Plugin".
+- Updated the chat layout to a messenger-style conversation view (user messages on the right, responses on the left).
+- Now shows a clearer, more user-friendly message when Copilot finishes responding.
+- Added support for skipping a tool call without ending the conversation.
+
+### Fixed
+- Fixed a command injection vulnerability when opening referenced chat files.
+- Resolved display issues in the chat view on macOS 26.
+
+## 0.43.0 - September 4, 2025
+### Fixed
+- Cannot type non-Latin characters in the chat input field.
+
+## 0.42.0 - September 3, 2025
+### Added
+- Support for Bring Your Own Keys (BYOK) with model providers including Azure, OpenAI, Anthropic, Gemini, Groq, and OpenRouter. See [BYOK.md](https://github.com/github/CopilotForXcode/blob/0.42.0/Docs/BYOK.md).
+- Use the current selection as chat context.
+- Add folders as chat context.
+- Shortcut to quickly fix errors in Xcode.
+- Support for custom instruction files at `.github/instructions/*.instructions.md`. See [CustomInstructions.md](https://github.com/github/CopilotForXcode/blob/0.42.0/Docs/CustomInstructions.md).
+- Support for prompt files at `.github/prompts/*.prompt.md`. See [PromptFiles.md](https://github.com/github/CopilotForXcode/blob/0.42.0/Docs/PromptFiles.md).
+- Use ↑/↓ keys to reuse previous chat context in the chat view.
+
+### Changed
+- Default chat mode is now set to “Agent”.
+
+### Fixed
+- Cannot copy url from Safari browser to chat view.
+
+## 0.41.0 - August 14, 2025
+### Added
+- Code review feature.
+- Chat: Support for new model GPT-5.
+- Agent mode: Added support for new tool to read web URL contents.
+- Support disabling MCP when it's disabled by policy.
+- Support for opening MCP logs directly from the MCP settings page.
+- OAuth support for remote GitHub MCP server.
+
+### Changed
+- Performance: Improved instant-apply speed for edit_file tool.
+
+### Fixed
+- Chat Agent repeatedly reverts its own changes when editing the same file.
+- Performance: Avoid chat panel being stuck when sending a large text for chat.
+
+## 0.40.0 - July 24, 2025
+### Added
+- Support disabling Agent mode when it's disabled by policy.
+
+## 0.39.0 - July 23, 2025
+### Fixed
+- Performance: Fixed a freezing issue in 'Add Context' view when opening large projects.
+- Login failed due to insufficient permissions on the .config folder.
+- Fixed an issue that setting changes like proxy config did not take effect.
+- Increased the timeout for ask mode to prevent response failures due to timeout.
+
+## 0.38.0 - June 30, 2025
+### Added
+- Support for Claude 4 in Chat.
+- Support for Copilot Vision (image attachments).
+- Support for remote MCP servers.
+
+### Changed
+- Automatically suggests a title for conversations created in agent mode.
+- Improved restoration of MCP tool status after Copilot restarts.
+- Reduced duplication of MCP server instances.
+
+### Fixed
+- Switching accounts now correctly refreshes the auth token and models.
+- Fixed file create/edit issues in agent mode.
+
 ## 0.37.0 - June 18, 2025
 ### Added
 - **Advanced** settings: Added option to configure **Custom Instructions** for GitHub Copilot during chat sessions.

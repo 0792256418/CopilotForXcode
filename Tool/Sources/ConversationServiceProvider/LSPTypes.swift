@@ -1,6 +1,7 @@
 import Foundation
 import JSONRPC
 import LanguageServerProtocol
+import SuggestionBasic
 
 // MARK: Conversation template
 public struct ChatTemplate: Codable, Equatable {
@@ -23,6 +24,7 @@ public enum PromptTemplateScope: String, Codable, Equatable {
     case agentPanel = "agent-panel"
     case editor = "editor"
     case inline = "inline"
+    case inlineAgent = "inline-agent"
     case completion = "completion"
 }
 
@@ -38,6 +40,7 @@ public struct CopilotModel: Codable, Equatable {
     public let modelFamily: String
     public let modelName: String
     public let id: String
+    public let vendor: String?
     public let modelPolicy: CopilotModelPolicy?
     public let scopes: [PromptTemplateScope]
     public let preview: Bool
@@ -45,6 +48,10 @@ public struct CopilotModel: Codable, Equatable {
     public let isChatFallback: Bool
     public let capabilities: CopilotModelCapabilities
     public let billing: CopilotModelBilling?
+    public let customModel: CopilotModelCustomModel?
+    public let degradationReason: String?
+    public let modelPickerCategory: String?
+    public let modelPickerPriceCategory: String?
 }
 
 public struct CopilotModelPolicy: Codable, Equatable {
@@ -54,15 +61,141 @@ public struct CopilotModelPolicy: Codable, Equatable {
 
 public struct CopilotModelCapabilities: Codable, Equatable {
     public let supports: CopilotModelCapabilitiesSupports
+    public let limits: CopilotModelCapabilitiesLimits?
+}
+
+public struct CopilotModelCapabilitiesLimits: Codable, Equatable {
+    public let maxContextWindowTokens: Int?
+    public let maxOutputTokens: Int?
+    public let maxInputTokens: Int?
+    public let maxNonStreamingOutputTokens: Int?
 }
 
 public struct CopilotModelCapabilitiesSupports: Codable, Equatable {
     public let vision: Bool
+    public let reasoningEfforts: [String]?
+    public let supportsReasoningEffortLevel: Bool
 }
 
 public struct CopilotModelBilling: Codable, Equatable, Hashable {
     public let isPremium: Bool
     public let multiplier: Float
+    public let tokenBasedBillingEnabled: Bool?
+    public let tokenPrices: CopilotModelBillingTokenPrices?
+    public let promo: CopilotModelBillingPromo?
+
+    public init(
+        isPremium: Bool,
+        multiplier: Float,
+        tokenBasedBillingEnabled: Bool? = nil,
+        tokenPrices: CopilotModelBillingTokenPrices? = nil,
+        promo: CopilotModelBillingPromo? = nil
+    ) {
+        self.isPremium = isPremium
+        self.multiplier = multiplier
+        self.tokenBasedBillingEnabled = tokenBasedBillingEnabled
+        self.tokenPrices = tokenPrices
+        self.promo = promo
+    }
+}
+
+public struct CopilotModelBillingTokenPrices: Codable, Equatable, Hashable {
+    public let batchSize: Int?
+    public let `default`: CopilotModelTokenPriceTier?
+    public let longContext: CopilotModelTokenPriceTier?
+
+    public var cachePrice: Float? { `default`?.cachePrice ?? longContext?.cachePrice }
+    public var inputPrice: Float? { `default`?.inputPrice ?? longContext?.inputPrice }
+    public var outputPrice: Float? { `default`?.outputPrice ?? longContext?.outputPrice }
+    public var tokenUnit: Int? { batchSize }
+}
+
+public struct CopilotModelTokenPriceTier: Codable, Equatable, Hashable {
+    public let cachePrice: Float?
+    public let cacheWritePrice: Float?
+    public let inputPrice: Float?
+    public let outputPrice: Float?
+    public let maxContext: Int?
+}
+
+public struct CopilotModelBillingPromo: Codable, Equatable, Hashable {
+    public let id: String
+    public let discountPercent: Float
+    public let endsAt: String
+    public let message: String
+}
+
+public struct CopilotModelCustomModel: Codable, Equatable {
+    public let keyName: String?
+    public let ownerName: String?
+    public let ownerType: String?
+    public let provider: String?
+}
+
+// MARK: ChatModes
+public enum ChatMode: String, Codable {
+    case Ask = "Ask"
+    case Edit = "Edit"
+    case Agent = "Agent"
+    case InlineAgent = "InlineAgent"
+}
+
+public struct ConversationMode: Codable, Equatable {
+    public let id: String
+    public let name: String
+    public let kind: ChatMode
+    public let isBuiltIn: Bool
+    public let uri: String?
+    public let description: String?
+    public let customTools: [String]?
+    public let model: String?
+    public let handOffs: [HandOff]?
+    
+    public var isDefaultAgent: Bool { id == "Agent" }
+    
+    public static let `defaultAgent` = ConversationMode(
+        id: "Agent",
+        name: "Agent",
+        kind: .Agent,
+        isBuiltIn: true,
+        description: "Advanced agent mode with access to tools and capabilities"
+    )
+
+    public init(
+        id: String,
+        name: String,
+        kind: ChatMode,
+        isBuiltIn: Bool,
+        uri: String? = nil,
+        description: String? = nil,
+        customTools: [String]? = nil,
+        model: String? = nil,
+        handOffs: [HandOff]? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.isBuiltIn = isBuiltIn
+        self.uri = uri
+        self.description = description
+        self.customTools = customTools
+        self.model = model
+        self.handOffs = handOffs
+    }
+}
+
+public struct HandOff: Codable, Equatable {
+    public let agent: String
+    public let label: String
+    public let prompt: String
+    public let send: Bool?
+
+    public init(agent: String, label: String, prompt: String, send: Bool?) {
+        self.agent = agent
+        self.label = label
+        self.prompt = prompt
+        self.send = send
+    }
 }
 
 // MARK: Conversation Agents
@@ -88,6 +221,40 @@ public struct RegisterToolsParams: Codable, Equatable {
     public init(tools: [LanguageModelToolInformation]) {
         self.tools = tools
     }
+}
+
+public struct UpdateToolsStatusParams: Codable, Equatable {
+    public let chatModeKind: ChatMode?
+    public let customChatModeId: String?
+    public let workspaceFolders: [WorkspaceFolder]?
+    public let tools: [ToolStatusUpdate]
+
+    public init(
+        chatmodeKind: ChatMode? = nil,
+        customChatModeId: String? = nil,
+        workspaceFolders: [WorkspaceFolder]? = nil,
+        tools: [ToolStatusUpdate]
+    ) {
+        self.chatModeKind = chatmodeKind
+        self.customChatModeId = customChatModeId
+        self.workspaceFolders = workspaceFolders
+        self.tools = tools
+    }
+}
+
+public struct ToolStatusUpdate: Codable, Equatable {
+    public let name: String
+    public let status: ToolStatus
+    
+    public init(name: String, status: ToolStatus) {
+        self.name = name
+        self.status = status
+    }
+}
+
+public enum ToolStatus: String, Codable, Equatable, Hashable {
+    case enabled = "enabled"
+    case disabled = "disabled"
 }
 
 public struct LanguageModelToolInformation: Codable, Equatable {
@@ -151,6 +318,68 @@ public struct LanguageModelToolConfirmationMessages: Codable, Equatable {
         self.title = title
         self.message = message
     }
+}
+
+public struct LanguageModelTool: Codable, Equatable {
+    public let id: String
+    public let type: ToolType
+    public let toolProvider: ToolProvider
+    public let nameForModel: String
+    public let name: String
+    public let displayName: String?
+    public let description: String?
+    public let displayDescription: String
+    public let inputSchema: [String: AnyCodable]?
+    public let annotations: ToolAnnotations?
+    public let status: ToolStatus
+    
+    public init(
+        id: String,
+        type: ToolType,
+        toolProvider: ToolProvider,
+        nameForModel: String,
+        name: String,
+        displayName: String?,
+        description: String?,
+        displayDescription: String,
+        inputSchema: [String : AnyCodable]?,
+        annotations: ToolAnnotations?,
+        status: ToolStatus
+    ) {
+        self.id = id
+        self.type = type
+        self.toolProvider = toolProvider
+        self.nameForModel = nameForModel
+        self.name = name
+        self.displayName = displayName
+        self.description = description
+        self.displayDescription = displayDescription
+        self.inputSchema = inputSchema
+        self.annotations = annotations
+        self.status = status
+    }
+}
+
+public enum ToolType: String, Codable, CaseIterable {
+    case shared = "shared"
+    case client = "client"
+    case mcp = "mcp"
+}
+
+public struct ToolProvider: Codable, Equatable {
+    public let id: String
+    public let displayName: String
+    public let displayNamePrefix: String?
+    public let description: String
+    public let isFirstPartyTool: Bool
+}
+
+public struct ToolAnnotations: Codable, Equatable {
+    public let title: String?
+    public let readOnlyHint: Bool?
+    public let destructiveHint: Bool?
+    public let idempotentHint: Bool?
+    public let openWorldHint: Bool?
 }
 
 public struct InvokeClientToolParams: Codable, Equatable {
@@ -247,6 +476,12 @@ public struct AnyCodable: Codable, Equatable {
 
 public typealias InvokeClientToolRequest = JSONRPCRequest<InvokeClientToolParams>
 
+public enum ToolInvocationStatus: String, Codable {
+    case success
+    case error
+    case cancelled
+}
+
 public struct LanguageModelToolResult: Codable, Equatable {
     public struct Content: Codable, Equatable {
         public let value: AnyCodable
@@ -256,9 +491,11 @@ public struct LanguageModelToolResult: Codable, Equatable {
         }
     }
     
+    public let status: ToolInvocationStatus
     public let content: [Content]
     
-    public init(content: [Content]) {
+    public init(status: ToolInvocationStatus = .success, content: [Content]) {
+        self.status = status
         self.content = content
     }
 }
@@ -333,4 +570,277 @@ public struct CopilotMessageActionItem: Codable, Equatable, Hashable {
 public struct ActionCommand: Codable, Equatable, Hashable {
     public var commandId: String
     public var args: LSPAny?
+}
+
+// MARK: - Copilot Code Review
+
+public struct GenerateThinkingTitleParams: Codable {
+    public var thinkingContent: String?
+    public var extractedTitles: [String]?
+
+    public init(thinkingContent: String? = nil, extractedTitles: [String]? = nil) {
+        self.thinkingContent = thinkingContent
+        self.extractedTitles = extractedTitles
+    }
+}
+
+public struct GenerateThinkingTitleResponse: Codable {
+    public var title: String
+}
+
+public struct ReviewChangesParams: Codable, Equatable {
+    public struct Change: Codable, Equatable {
+        public let uri: DocumentUri
+        public let path: String
+        // The original content of the file before changes were made. Will be empty string if the file is new.
+        public let baseContent: String
+        // The current content of the file with changes applied. Will be empty string if the file is deleted.
+        public let headContent: String
+        
+        public init(uri: DocumentUri, path: String, baseContent: String, headContent: String) {
+            self.uri = uri
+            self.path = path
+            self.baseContent = baseContent
+            self.headContent = headContent
+        }
+    }
+    
+    public let changes: [Change]
+    public let workspaceFolders: [WorkspaceFolder]?
+    
+    public init(changes: [Change], workspaceFolders: [WorkspaceFolder]? = nil) {
+        self.changes = changes
+        self.workspaceFolders = workspaceFolders
+    }
+}
+
+public struct ReviewComment: Codable, Equatable, Hashable {
+    // Self-defined `id` for using in comment operation. Generated when missing from payload.
+    public let id: String
+    public let uri: DocumentUri
+    public let range: LSPRange
+    public let message: String
+    // enum: bug, performance, consistency, documentation, naming, readability, style, other
+    public let kind: String
+    // enum: low, medium, high
+    public let severity: String
+    public let suggestion: String?
+
+    public init(
+        uri: DocumentUri,
+        range: LSPRange,
+        message: String,
+        kind: String,
+        severity: String,
+        suggestion: String?
+    ) {
+        self.id = UUID().uuidString
+        self.uri = uri
+        self.range = range
+        self.message = message
+        self.kind = kind
+        self.severity = severity
+        self.suggestion = suggestion
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, uri, range, message, kind, severity, suggestion
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        self.uri = try container.decode(DocumentUri.self, forKey: .uri)
+        self.range = try container.decode(LSPRange.self, forKey: .range)
+        self.message = try container.decode(String.self, forKey: .message)
+        self.kind = try container.decode(String.self, forKey: .kind)
+        self.severity = try container.decode(String.self, forKey: .severity)
+        self.suggestion = try container.decodeIfPresent(String.self, forKey: .suggestion)
+    }
+}
+
+public struct CodeReviewResult: Codable, Equatable {
+    public let comments: [ReviewComment]
+    
+    public init(comments: [ReviewComment]) {
+        self.comments = comments
+    }
+}
+
+
+// MARK: - Conversation / Turn
+
+public enum ConversationSource: String, Codable {
+    case panel, inline
+}
+
+public struct FileReference: Codable, Equatable, Hashable {
+    public var type: String = "file"
+    public let uri: String
+    public let position: Position?
+    public let visibleRange: SuggestionBasic.CursorRange?
+    public let selection: SuggestionBasic.CursorRange?
+    public let openedAt: String?
+    public let activeAt: String?
+}
+
+public struct DirectoryReference: Codable, Equatable, Hashable {
+    public var type: String = "directory"
+    public let uri: String
+}
+
+public enum Reference: Codable, Equatable, Hashable {
+    case file(FileReference)
+    case directory(DirectoryReference)
+    
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .file(let fileRef):
+            try fileRef.encode(to: encoder)
+        case .directory(let directoryRef):
+            try directoryRef.encode(to: encoder)
+        }
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case type
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        
+        switch type {
+        case "file":
+            let fileRef = try FileReference(from: decoder)
+            self = .file(fileRef)
+        case "directory":
+            let directoryRef = try DirectoryReference(from: decoder)
+            self = .directory(directoryRef)
+        default:
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Unknown reference type: \(type)"
+                )
+            )
+        }
+    }
+    
+    public static func from(_ ref: ConversationAttachedReference) -> Reference {
+        switch ref {
+        case .file(let fileRef):
+            return .file(
+                .init(
+                    uri: fileRef.url.absoluteString,
+                    position: nil,
+                    visibleRange: nil,
+                    selection: nil,
+                    openedAt: nil,
+                    activeAt: nil
+                )
+            )
+        case .directory(let directoryRef):
+            return .directory(.init(uri: directoryRef.url.absoluteString))
+        }
+    }
+}
+
+public struct ConversationModelInfo: Codable {
+    public let id: String?
+    public let providerName: String?
+    public let reasoningEffort: String?
+
+    public init(id: String?, providerName: String?, reasoningEffort: String?) {
+        self.id = id
+        self.providerName = providerName
+        self.reasoningEffort = reasoningEffort
+    }
+}
+
+public struct ConversationCreateResponse: Codable {
+    public let conversationId: String
+    public let turnId: String
+    public let agentSlug: String?
+    public let modelName: String?
+    public let modelProviderName: String?
+    public let billingMultiplier: Float?
+    public let modelInfo: ConversationModelInfo?
+}
+
+public struct ConversationCreateParams: Codable {
+    public var workDoneToken: String
+    public var turns: [TurnSchema]
+    public var capabilities: Capabilities
+    public var textDocument: Doc?
+    public var references: [Reference]?
+    public var computeSuggestions: Bool?
+    public var source: ConversationSource?
+    public var workspaceFolder: String?
+    public var workspaceFolders: [WorkspaceFolder]?
+    public var ignoredSkills: [String]?
+    public var model: String?
+    public var modelProviderName: String?
+    public var modelInfo: ConversationModelInfo?
+    public var chatMode: String?
+    public var customChatModeId: String?
+    public var needToolCallConfirmation: Bool?
+    public var userLanguage: String?
+
+    public struct Capabilities: Codable {
+        public var skills: [String]
+        public var allSkills: Bool?
+        
+        public init(skills: [String], allSkills: Bool? = nil) {
+            self.skills = skills
+            self.allSkills = allSkills
+        }
+    }
+    
+    public init(
+        workDoneToken: String,
+        turns: [TurnSchema],
+        capabilities: Capabilities,
+        textDocument: Doc? = nil,
+        references: [Reference]? = nil,
+        computeSuggestions: Bool? = nil,
+        source: ConversationSource? = nil,
+        workspaceFolder: String? = nil,
+        workspaceFolders: [WorkspaceFolder]? = nil,
+        ignoredSkills: [String]? = nil,
+        model: String? = nil,
+        modelProviderName: String? = nil,
+        modelInfo: ConversationModelInfo? = nil,
+        chatMode: String? = nil,
+        customChatModeId: String? = nil,
+        needToolCallConfirmation: Bool? = nil,
+        userLanguage: String? = nil
+    ) {
+        self.workDoneToken = workDoneToken
+        self.turns = turns
+        self.capabilities = capabilities
+        self.textDocument = textDocument
+        self.references = references
+        self.computeSuggestions = computeSuggestions
+        self.source = source
+        self.workspaceFolder = workspaceFolder
+        self.workspaceFolders = workspaceFolders
+        self.ignoredSkills = ignoredSkills
+        self.model = model
+        self.modelProviderName = modelProviderName
+        self.modelInfo = modelInfo
+        self.chatMode = chatMode
+        self.customChatModeId = customChatModeId
+        self.needToolCallConfirmation = needToolCallConfirmation
+        self.userLanguage = userLanguage
+    }
+}
+
+// MARK: - ConversationErrorCode
+public enum ConversationErrorCode: Int {
+    // -1: Unknown error, used when the error may not be user friendly.
+    case unknown = -1
+    // 0: Default error code, for backward compatibility with Copilot Chat.
+    case `default` = 0
+    case toolRoundExceedError = 10000
 }

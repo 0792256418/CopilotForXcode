@@ -7,8 +7,16 @@ public let HostAppURL = locateHostBundleURL(url: Bundle.main.bundleURL)
 public extension Notification.Name {
     static let openSettingsWindowRequest = Notification
         .Name("com.github.CopilotForXcode.OpenSettingsWindowRequest")
-    static let openMCPSettingsWindowRequest = Notification
-        .Name("com.github.CopilotForXcode.OpenMCPSettingsWindowRequest")
+    static let openToolsSettingsWindowRequest = Notification
+        .Name("com.github.CopilotForXcode.OpenToolsSettingsWindowRequest")
+    static let openToolsSettingsAutoApproveWindowRequest = Notification
+        .Name("com.github.CopilotForXcode.OpenToolsSettingsAutoApproveWindowRequest")
+    static let openBYOKSettingsWindowRequest = Notification
+        .Name("com.github.CopilotForXcode.OpenBYOKSettingsWindowRequest")
+    static let openAdvancedSettingsWindowRequest = Notification
+        .Name("com.github.CopilotForXcode.OpenAdvancedSettingsWindowRequest")
+    static let selectedAgentSubModeDidChange = Notification
+        .Name("com.github.CopilotForXcode.SelectedAgentSubModeDidChange")
 }
 
 public enum GitHubCopilotForXcodeSettingsLaunchError: Error, LocalizedError {
@@ -37,24 +45,21 @@ public func launchHostAppSettings() throws {
         let activated = hostApp.activate(options: [.activateIgnoringOtherApps])
         Logger.ui.info("\(hostAppName()) activated: \(activated)")
 
-        let scriptSuccess = tryLaunchWithAppleScript()
-        
-        // If AppleScript fails, fall back to notification center
-        if !scriptSuccess {
-            DistributedNotificationCenter.default().postNotificationName(
-                .openSettingsWindowRequest,
-                object: nil
-            )
-            Logger.ui.info("\(hostAppName()) settings notification sent after activation")
-            return
-        }
+        _ = tryLaunchWithAppleScript()
+
+        DistributedNotificationCenter.default().postNotificationName(
+            .openSettingsWindowRequest,
+            object: nil
+        )
+        Logger.ui.info("\(hostAppName()) settings notification sent after activation")
+        return
     } else {
         // If app is not running, launch it with the settings flag
         try launchHostAppWithArgs(args: ["--settings"])
     }
 }
 
-public func launchHostAppMCPSettings() throws {
+public func launchHostAppToolsSettings(currentAgentSubMode: String) throws {
     // Try the AppleScript approach first, but only if app is already running
     if let hostApp = getRunningHostApp() {
         let activated = hostApp.activate(options: [.activateIgnoringOtherApps])
@@ -63,14 +68,84 @@ public func launchHostAppMCPSettings() throws {
         _ = tryLaunchWithAppleScript()
         
         DistributedNotificationCenter.default().postNotificationName(
-            .openMCPSettingsWindowRequest,
+            .openToolsSettingsWindowRequest,
             object: nil
         )
+        
+        // Notify settings app of current agent submode
+        DistributedNotificationCenter.default().postNotificationName(
+            .selectedAgentSubModeDidChange,
+            object: nil,
+            userInfo: ["agentSubMode": currentAgentSubMode],
+            options: .deliverImmediately
+        )
+        
         Logger.ui.info("\(hostAppName()) MCP settings notification sent after activation")
         return
     } else {
         // If app is not running, launch it with the settings flag
-        try launchHostAppWithArgs(args: ["--mcp"])
+        try launchHostAppWithArgs(args: ["--tools"])
+    }
+}
+
+public func launchHostAppToolsSettingsAutoApprove() throws {
+    // Try the AppleScript approach first, but only if app is already running
+    if let hostApp = getRunningHostApp() {
+        let activated = hostApp.activate(options: [.activateIgnoringOtherApps])
+        Logger.ui.info("\(hostAppName()) activated: \(activated)")
+
+        _ = tryLaunchWithAppleScript()
+        
+        DistributedNotificationCenter.default().postNotificationName(
+            .openToolsSettingsAutoApproveWindowRequest,
+            object: nil
+        )
+        
+        Logger.ui.info("\(hostAppName()) MCP settings (Auto-Approve) notification sent after activation")
+        return
+    } else {
+        // If app is not running, launch it with the settings flag
+        try launchHostAppWithArgs(args: ["--tools-auto-approve"])
+    }
+}
+
+public func launchHostAppBYOKSettings() throws {
+    // Try the AppleScript approach first, but only if app is already running
+    if let hostApp = getRunningHostApp() {
+        let activated = hostApp.activate(options: [.activateIgnoringOtherApps])
+        Logger.ui.info("\(hostAppName()) activated: \(activated)")
+
+        _ = tryLaunchWithAppleScript()
+        
+        DistributedNotificationCenter.default().postNotificationName(
+            .openBYOKSettingsWindowRequest,
+            object: nil
+        )
+        Logger.ui.info("\(hostAppName()) BYOK settings notification sent after activation")
+        return
+    } else {
+        // If app is not running, launch it with the settings flag
+        try launchHostAppWithArgs(args: ["--byok"])
+    }
+}
+
+public func launchHostAppAdvancedSettings() throws {
+    // Try the AppleScript approach first, but only if app is already running
+    if let hostApp = getRunningHostApp() {
+        let activated = hostApp.activate(options: [.activateIgnoringOtherApps])
+        Logger.ui.info("\(hostAppName()) activated: \(activated)")
+        
+        _ = tryLaunchWithAppleScript()
+        
+        DistributedNotificationCenter.default().postNotificationName(
+            .openAdvancedSettingsWindowRequest,
+            object: nil
+        )
+        Logger.ui.info("\(hostAppName()) Advanced settings notification sent after activation")
+        return
+    } else {
+        // If app is not running, launch it with the settings flag
+        try launchHostAppWithArgs(args: ["--advanced"])
     }
 }
 
@@ -141,3 +216,5 @@ func hostAppName() -> String {
     return Bundle.main.object(forInfoDictionaryKey: "HOST_APP_NAME") as? String
         ?? "GitHub Copilot for Xcode"
 }
+
+public let SELECTED_AGENT_SUBMODE_KEY = "selectedAgentSubMode"

@@ -38,6 +38,21 @@ public class SystemUtils {
     public static let buildType: String = {
         return shared.isDeveloperMode() ? "true" : "false"
     }()
+    
+    public static let isDeveloperMode: Bool = {
+        return shared.isDeveloperMode()
+    }()
+
+    public static let isPrereleaseBuild: Bool = {
+        let components = editorPluginVersionString.split(separator: ".")
+        if components.count >= 3 {
+            let patchComponent = String(components[2])
+            // If patch version is not "0"
+            return patchComponent != "0"
+        }
+
+        return false
+    }()
 
     private init() {}
 
@@ -176,16 +191,12 @@ public class SystemUtils {
     
     /// Returns the environment of a login shell (to get correct PATH and other variables)
     public func getLoginShellEnvironment(shellPath: String = "/bin/zsh") -> [String: String]? {
-        let task = Process()
-        let pipe = Pipe()
-        task.executableURL = URL(fileURLWithPath: shellPath)
-        task.arguments = ["-i", "-l", "-c", "env"]
-        task.standardOutput = pipe
         do {
-            try task.run()
-            task.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return nil }
+            guard let output = try Self.executeCommand(
+                path: shellPath, 
+                arguments: ["-i", "-l", "-c", "env"])
+            else { return nil }
+            
             var env: [String: String] = [:]
             for line in output.split(separator: "\n") {
                 if let idx = line.firstIndex(of: "=") {
@@ -199,6 +210,32 @@ public class SystemUtils {
             Logger.client.error("Failed to get login shell environment: \(error.localizedDescription)")
             return nil
         }
+    }
+    
+    public static func executeCommand(
+        inDirectory directory: String = NSHomeDirectory(), 
+        path: String, 
+        arguments: [String]
+    ) throws -> String? {
+        let task = Process()
+        let pipe = Pipe()
+        
+        defer {
+            pipe.fileHandleForReading.closeFile()
+            if task.isRunning {
+                task.terminate()
+            }
+        }
+        
+        task.executableURL = URL(fileURLWithPath: path)
+        task.arguments = arguments
+        task.standardOutput = pipe
+        task.currentDirectoryURL = URL(fileURLWithPath: directory)
+        
+        try task.run()
+        task.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)
     }
 
     public func appendCommonBinPaths(path: String) -> String {

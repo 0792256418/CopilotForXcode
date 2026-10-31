@@ -4,6 +4,7 @@ import AXExtension
 import AXNotificationStream
 import Combine
 import Foundation
+import Status
 
 public final class XcodeAppInstanceInspector: AppInstanceInspector {
     public struct AXNotification {
@@ -77,20 +78,10 @@ public final class XcodeAppInstanceInspector: AppInstanceInspector {
 
     public let axNotifications = AsyncPassthroughSubject<AXNotification>()
 
-    public var realtimeDocumentURL: URL? {
-        guard let window = appElement.focusedWindow,
-              window.identifier == "Xcode.WorkspaceWindow"
-        else { return nil }
-
-        return WorkspaceXcodeWindowInspector.extractDocumentURL(windowElement: window)
-    }
+    public var realtimeDocumentURL: URL? { appElement.realtimeDocumentURL }
 
     public var realtimeWorkspaceURL: URL? {
-        guard let window = appElement.focusedWindow,
-              window.identifier == "Xcode.WorkspaceWindow"
-        else { return nil }
-
-        return WorkspaceXcodeWindowInspector.extractWorkspaceURL(windowElement: window)
+        appElement.realtimeWorkspaceURL
     }
 
     public var realtimeProjectURL: URL? {
@@ -408,6 +399,27 @@ extension XcodeAppInstanceInspector {
     }
 }
 
+// MARK: - Focused Element
+
+extension XcodeAppInstanceInspector {
+    public func getFocusedElement(shouldRecordStatus: Bool = false) -> AXUIElement? {
+        do {
+            let focused: AXUIElement = try self.appElement.copyValue(key: kAXFocusedUIElementAttribute)
+            if shouldRecordStatus {
+                Task { await Status.shared.updateAXStatus(.granted) }
+            }
+            return focused
+        } catch AXError.apiDisabled {
+            if shouldRecordStatus {
+                Task { await Status.shared.updateAXStatus(.notGranted) }
+            }
+        } catch {
+            // ignore
+        }
+        return nil
+    }
+}
+
 public extension AXUIElement {
     var tabBars: [AXUIElement] {
         // Searching by traversing with AXUIElement is (Xcode) resource consuming, we should skip
@@ -435,7 +447,7 @@ public extension AXUIElement {
             if element.identifier == "editor context" {
                 return .skipDescendantsAndSiblings
             }
-            if element.isSourceEditor {
+            if element.isNonNavigatorSourceEditor {
                 return .skipDescendantsAndSiblings
             }
             if description == "Code Coverage Ribbon" {

@@ -11,6 +11,7 @@ import SuggestionWidget
 import PersistMiddleware
 import ChatService
 import Persist
+import Workspace
 
 #if canImport(ChatTabPersistent)
 import ChatTabPersistent
@@ -281,6 +282,7 @@ struct GUI {
                             await send(.openChatPanel(forceDetach: false))
                             await stopAndHandleCommand(chatTab)
                             await send(.suggestionWidget(.chatPanel(.saveChatTabInfo([originalTab, currentTab], chatWorkspace))))
+                            await send(.suggestionWidget(.chatPanel(.syncChatTabInfo([originalTab, currentTab]))))
                         }
                     }
 
@@ -363,6 +365,9 @@ public final class GraphicalUserInterfaceController {
     }
 
     init() {
+        @Dependency(\.workspacePool) var workspacePool
+        @Dependency(\.workspaceInvoker) var workspaceInvoker
+        
         let chatTabPool = ChatTabPool()
         let suggestionDependency = SuggestionWidgetControllerDependency()
         let setupDependency: (inout DependencyValues) -> Void = { dependencies in
@@ -423,6 +428,12 @@ public final class GraphicalUserInterfaceController {
                 let commandHandler = PseudoCommandHandler()
                 await commandHandler.handleCustomCommand(command)
             }
+        }
+        
+        workspaceInvoker.invokeFilespaceUpdate = { fileURL, content in
+            guard let (workspace, _) = try? await workspacePool.fetchOrCreateWorkspaceAndFilespace(fileURL: fileURL)
+            else { return }
+            await workspace.didUpdateFilespace(fileURL: fileURL, content: content)
         }
     }
 

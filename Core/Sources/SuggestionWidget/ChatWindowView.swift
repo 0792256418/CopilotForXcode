@@ -40,8 +40,8 @@ struct ChatWindowView: View {
                         ChatLoginView(viewModel: GitHubCopilotViewModel.shared)
                     case .notAuthorized:
                         ChatNoSubscriptionView(viewModel: GitHubCopilotViewModel.shared)
-                    default:
-                        ChatLoadingView()
+                    case .unknown:
+                        ChatLoginView(viewModel: GitHubCopilotViewModel.shared)
                     }
                 }
             }
@@ -59,24 +59,23 @@ struct ChatView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Rectangle().fill(.regularMaterial).frame(height: 28)
+            Rectangle()
+                .fill(Color.chatWindowBackgroundColor)
+                .scaledFrame(height: 28)
 
-            Divider()
-
-            ZStack {
-                VStack(spacing: 0) {
-                    ChatBar(store: store, isChatHistoryVisible: $isChatHistoryVisible)
-                        .frame(height: 32)
-                        .background(Color(nsColor: .windowBackgroundColor))
-
-                    Divider()
-
-                    ChatTabContainer(store: store)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+            VStack(spacing: 0) {
+                ChatBar(store: store, isChatHistoryVisible: $isChatHistoryVisible)
+                    .scaledFrame(height: 32)
+                    .scaledPadding(.leading, 16)
+                    .scaledPadding(.trailing, 8)
+                
+                Divider()
+                
+                ChatTabContainer(store: store)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .xcodeStyleFrame(cornerRadius: 10)
+        .xcodeStyleFrame()
         .ignoresSafeArea(edges: .top)
     }
 }
@@ -89,21 +88,21 @@ struct ChatHistoryViewWrapper: View {
     var body: some View {
         WithPerceptionTracking {
             VStack(spacing: 0) {
-                Rectangle().fill(.regularMaterial).frame(height: 28)
-
-                Divider()
+                Rectangle()
+                    .fill(Color.chatWindowBackgroundColor)
+                    .scaledFrame(height: 28)
                 
                 ChatHistoryView(
                     store: store,
                     isChatHistoryVisible: $isChatHistoryVisible
                 )
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(Color.chatWindowBackgroundColor)
                 .frame(
                     maxWidth: .infinity,
                     maxHeight: .infinity
                 )
             }
-            .xcodeStyleFrame(cornerRadius: 10)
+            .xcodeStyleFrame()
             .ignoresSafeArea(edges: .top)
             .preferredColorScheme(store.colorScheme)
             .focusable()
@@ -133,10 +132,10 @@ struct ChatLoadingView: View {
             Spacer()
 
         }
-        .xcodeStyleFrame(cornerRadius: 10)
+        .xcodeStyleFrame()
         .ignoresSafeArea(edges: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(.ultraThinMaterial)
     }
 }
 
@@ -163,7 +162,7 @@ struct ChatTitleBar: View {
                 ) {
                     Image(systemName: "minus")
                         .foregroundStyle(.black.opacity(0.5))
-                        .font(Font.system(size: 8).weight(.heavy))
+                        .scaledFont(Font.system(size: 8).weight(.heavy))
                 }
                 .opacity(0)
                 .keyboardShortcut("m", modifiers: [.command])
@@ -181,7 +180,7 @@ struct ChatTitleBar: View {
                     ) {
                         Image(systemName: "pin.fill")
                             .foregroundStyle(.black.opacity(0.5))
-                            .font(Font.system(size: 6).weight(.black))
+                            .scaledFont(Font.system(size: 6).weight(.black))
                             .transformEffect(.init(translationX: 0, y: 0.5))
                     }
                 }
@@ -213,7 +212,7 @@ struct ChatTitleBar: View {
                             ? color
                             : Color(nsColor: .separatorColor)
                     )
-                    .frame(
+                    .scaledFrame(
                         width: Style.trafficLightButtonSize,
                         height: Style.trafficLightButtonSize
                     )
@@ -233,17 +232,14 @@ struct ChatTitleBar: View {
 
 private extension View {
     func hideScrollIndicator() -> some View {
-        if #available(macOS 13.0, *) {
-            return scrollIndicators(.hidden)
-        } else {
-            return self
-        }
+        scrollIndicators(.hidden)
     }
 }
 
 struct ChatBar: View {
     let store: StoreOf<ChatPanelFeature>
     @Binding var isChatHistoryVisible: Bool
+    @ObservedObject private var statusObserver = StatusObserver.shared
 
     struct TabBarState: Equatable {
         var tabInfo: IdentifiedArray<String, ChatTabInfo>
@@ -252,12 +248,19 @@ struct ChatBar: View {
 
     var body: some View {
         WithPerceptionTracking {
-            HStack(spacing: 0) {
+            HStack(spacing: 8) {
                 if store.chatHistory.selectedWorkspaceName != nil {
                     ChatWindowHeader(store: store)
                 }
 
                 Spacer()
+
+                if statusObserver.quotaInfo != nil {
+                    QuotaButton(store: store)
+
+                    Divider()
+                        .scaledFrame(height: 16)
+                }
 
                 CreateButton(store: store)
 
@@ -265,7 +268,6 @@ struct ChatBar: View {
                 
                 SettingsButton(store: store)
             }
-            .padding(.horizontal, 12)
         }
     }
 
@@ -322,13 +324,13 @@ struct ChatBar: View {
                             .resizable()
                             .renderingMode(.original)
                             .scaledToFit()
-                            .frame(width: 24, height: 24)
+                            .scaledFrame(width: 24, height: 24)
 
                     Text(store.chatHistory.selectedWorkspaceName!)
-                        .font(.system(size: 13, weight: .bold))
-                        .padding(.leading, 4)
+                        .scaledFont(size: 13, weight: .bold)
+                        .scaledPadding(.leading, 4)
                         .truncationMode(.tail)
-                        .frame(maxWidth: 192, alignment: .leading)
+                        .scaledFrame(maxWidth: 192, alignment: .leading)
                         .help(store.chatHistory.selectedWorkspacePath!)
                 }
             }
@@ -344,9 +346,9 @@ struct ChatBar: View {
                     store.send(.createNewTapButtonClicked(kind: nil))
                 }) {
                     Image(systemName: "plus.bubble")
+                        .scaledFont(.body)
                 }
                 .buttonStyle(HoverButtonStyle())
-                .padding(.horizontal, 4)
                 .help("New Chat")
                 .accessibilityLabel("New Chat")
             }
@@ -364,12 +366,13 @@ struct ChatBar: View {
                 }) {
                     if #available(macOS 15.0, *) {
                         Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                            .scaledFont(.body)
                     } else {
                         Image(systemName: "clock.arrow.circlepath")
+                            .scaledFont(.body)
                     }
                 }
                 .buttonStyle(HoverButtonStyle())
-                .padding(.horizontal, 4)
                 .help("Show Chats...")
                 .accessibilityLabel("Show Chats...")
             }
@@ -385,11 +388,170 @@ struct ChatBar: View {
                     store.send(.openSettings)
                 }) {
                     Image(systemName: "gearshape")
+                        .scaledFont(.body)
                 }
                 .buttonStyle(HoverButtonStyle())
-                .padding(.horizontal, 4)
                 .help("Open Settings")
                 .accessibilityLabel("Open Settings")
+            }
+        }
+    }
+
+    struct QuotaButton: View {
+        let store: StoreOf<ChatPanelFeature>
+        @ObservedObject private var statusObserver = StatusObserver.shared
+        @State private var isPopoverPresented = false
+        @State private var isButtonHovered = false
+        @State private var isPopoverHovered = false
+        @State private var dismissTask: DispatchWorkItem?
+
+        private var quotaInfo: GitHubCopilotQuotaInfo? {
+            statusObserver.quotaInfo
+        }
+
+        /// Static icon for unlimited business/enterprise; everyone else gets a dynamic pie chart.
+        private var usesStaticIcon: Bool {
+            guard let info = quotaInfo else { return true }
+            return info.isCBCEUnlimited
+        }
+
+        /// Free plan uses chat percentRemaining; other plans use premiumInteractions.
+        private var pieChartPercentRemaining: Float? {
+            guard let info = quotaInfo else { return nil }
+            if info.isFreeUser {
+                if let p = info.chat.percentRemaining { return p }
+                return info.chat.usedPercentage.map { 100.0 - $0 }
+            }
+            guard let snapshot = info.premiumInteractions else { return nil }
+            if let p = snapshot.percentRemaining { return p }
+            return snapshot.usedPercentage.map { 100.0 - $0 }
+        }
+
+        var body: some View {
+            WithPerceptionTracking {
+                Button(action: {}) {
+                    if usesStaticIcon {
+                        Image(systemName: "chart.pie")
+                            .scaledFont(.body)
+                    } else {
+                        PieChartIcon(
+                            percentRemaining: pieChartPercentRemaining ?? 100
+                        )
+                        .scaledFrame(width: 14, height: 14)
+                    }
+                }
+                .buttonStyle(HoverButtonStyle())
+                .accessibilityLabel("Copilot Usage")
+                .onHover { hovering in
+                    isButtonHovered = hovering
+                    handleHoverChange()
+                    if hovering {
+                        GitHubCopilotViewModel.shared.refreshQuotaIfNeeded()
+                    }
+                }
+                .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+                    QuotaPopoverView(
+                        quotaInfo: statusObserver.quotaInfo
+                    )
+                    .onHover { hovering in
+                        isPopoverHovered = hovering
+                        handleHoverChange()
+                    }
+                }
+            }
+        }
+
+        private func handleHoverChange() {
+            dismissTask?.cancel()
+            if isButtonHovered || isPopoverHovered {
+                isPopoverPresented = true
+                // Activate the app so buttons in the popover are interactive
+                // even when the chat panel wasn't focused before hovering
+                if !NSApp.isActive {
+                    if #available(macOS 14.0, *) {
+                        NSApp.activate()
+                    } else {
+                        NSApp.activate(ignoringOtherApps: false)
+                    }
+                }
+            } else {
+                let task = DispatchWorkItem { [self] in
+                    if !isButtonHovered && !isPopoverHovered {
+                        isPopoverPresented = false
+                    }
+                }
+                dismissTask = task
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: task)
+            }
+        }
+    }
+
+    /// A custom pie/donut chart icon that shows usage as a filled arc.
+    struct PieChartIcon: View {
+        let percentRemaining: Float
+
+        private var usedFraction: Double {
+            Double(min(max(100 - percentRemaining, 0), 100)) / 100.0
+        }
+
+        private var color: Color {
+            if percentRemaining <= 10 { return .red }
+            if percentRemaining <= 25 { return .yellow }
+            return .primary
+        }
+
+        var body: some View {
+            ZStack {
+                if percentRemaining <= 0 {
+                    DonutShape(outerRadius: 13, innerRadius: 2)
+                        .fill(color, style: FillStyle(eoFill: true))
+                } else {
+                    Circle()
+                        .strokeBorder(color, lineWidth: 1)
+                    PieSlice(fraction: usedFraction)
+                        .fill(color)
+                }
+            }
+        }
+
+        private struct DonutShape: Shape {
+            var outerRadius: CGFloat
+            var innerRadius: CGFloat
+
+            func path(in rect: CGRect) -> Path {
+                let center = CGPoint(x: rect.midX, y: rect.midY)
+                let maxRadius = min(rect.width, rect.height) / 2
+                let outer = min(outerRadius, maxRadius)
+                let inner = min(innerRadius, outer)
+                var path = Path()
+                path.addEllipse(in: CGRect(
+                    x: center.x - outer, y: center.y - outer,
+                    width: outer * 2, height: outer * 2
+                ))
+                path.addEllipse(in: CGRect(
+                    x: center.x - inner, y: center.y - inner,
+                    width: inner * 2, height: inner * 2
+                ))
+                return path
+            }
+        }
+
+        private struct PieSlice: Shape {
+            var fraction: Double
+
+            func path(in rect: CGRect) -> Path {
+                let center = CGPoint(x: rect.midX, y: rect.midY)
+                let radius = min(rect.width, rect.height) / 2
+                let startAngle = Angle.degrees(-90)
+                let endAngle = Angle.degrees(-90 + 360 * fraction)
+
+                var path = Path()
+                path.move(to: center)
+                path.addArc(center: center, radius: radius,
+                            startAngle: startAngle, endAngle: endAngle,
+                            clockwise: false)
+                path.closeSubpath()
+                return path
             }
         }
     }
@@ -453,21 +615,17 @@ struct ChatTabContainer: View {
         tabInfoArray: IdentifiedArray<String, ChatTabInfo>,
         selectedTabId: String
     ) -> some View {
-        ZStack {
-            ForEach(tabInfoArray) { tabInfo in
-                if let tab = chatTabPool.getTab(of: tabInfo.id) {
-                    let isActive = tab.id == selectedTabId
-                    tab.body
-                        .opacity(isActive ? 1 : 0)
-                        .disabled(!isActive)
-                        .allowsHitTesting(isActive)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        // Inactive tabs are rotated out of view
-                        .rotationEffect(
-                            isActive ? .zero : .degrees(90),
-                            anchor: .topLeading
-                        )
-                }
+        GeometryReader { geometry in
+            if tabInfoArray[id: selectedTabId] != nil,
+               let tab = chatTabPool.getTab(of: selectedTabId) {
+                tab.body
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height
+                    )
+            } else {
+                // Fallback if selected tab is not found
+                EmptyView()
             }
         }
     }
@@ -510,7 +668,7 @@ struct CreateOtherChatTabMenuStyle: MenuStyle {
     func makeBody(configuration: Configuration) -> some View {
         Image(systemName: "chevron.down")
             .resizable()
-            .frame(width: 7, height: 4)
+            .scaledFrame(width: 7, height: 4)
             .frame(maxHeight: .infinity)
             .padding(.leading, 4)
             .padding(.trailing, 8)

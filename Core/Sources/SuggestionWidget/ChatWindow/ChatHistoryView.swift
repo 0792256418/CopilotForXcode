@@ -19,18 +19,20 @@ struct ChatHistoryView: View {
 
             VStack(alignment: .center, spacing: 0) {
                 Header(isChatHistoryVisible: $isChatHistoryVisible)
-                    .frame(height: 32)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 12)
+                    .scaledFrame(height: 32)
+                    .scaledPadding(.leading, 12)
+                    .scaledPadding(.trailing, 8)
                 
                 Divider()
                 
                 ChatHistorySearchBarView(searchText: $searchText)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 4)
+                    .scaledPadding(.leading, 12)
+                    .scaledPadding(.trailing, 8)
+                    .scaledPadding(.vertical, 8)
                 
                 ItemView(store: store, searchText: $searchText, isChatHistoryVisible: $isChatHistoryVisible)
-                    .padding(.horizontal, 16)
+                    .scaledPadding(.leading, 12)
+                    .scaledPadding(.trailing, 8)
             }
         }
     }
@@ -42,8 +44,9 @@ struct ChatHistoryView: View {
         var body: some View {
             HStack {
                 Text("Chat History")
-                    .font(.system(size: 13, weight: .bold))
-                    .lineLimit(nil)
+                    .scaledFont(size: 13, weight: .bold)
+                    .scaledPadding(.leading, 4)
+                    .scaledFrame(maxWidth: 192, alignment: .leading)
                 
                 Spacer()
                 
@@ -51,6 +54,7 @@ struct ChatHistoryView: View {
                     isChatHistoryVisible = false
                 }) {
                     Image(systemName: "xmark")
+                        .scaledFont(.body)
                 }
                 .buttonStyle(HoverButtonStyle())
                 .help("Close")
@@ -79,7 +83,7 @@ struct ChatHistoryView: View {
                                 refreshStoredChatTabInfos()
                             }
                             .id(previewInfo.id)
-                            .frame(height: 61)
+                            .scaledFrame(height: 61)
                         }
                     }
                 }
@@ -123,8 +127,10 @@ struct ChatHistorySearchBarView: View {
         HStack(spacing: 5) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
+                .scaledFont(.body)
             
             TextField("Search", text: $searchText)
+                .scaledFont(.body)
                 .textFieldStyle(PlainTextFieldStyle())
                 .focused($isSearchBarFocused)
                 .foregroundColor(searchText.isEmpty ? Color(nsColor: .placeholderTextColor) : Color(nsColor: .textColor))
@@ -145,6 +151,7 @@ struct ChatHistorySearchBarView: View {
 struct ChatHistoryItemView: View {
     let store: StoreOf<ChatPanelFeature>
     let previewInfo: ChatTabPreviewInfo
+    @Environment(\.colorScheme) var colorScheme
     @Binding var isChatHistoryVisible: Bool
     @State private var isHovered = false
     
@@ -170,12 +177,13 @@ struct ChatHistoryItemView: View {
                             // directly get title from chat tab info
                             Text(previewInfo.title ?? "New Chat")
                                 .frame(alignment: .leading)
-                                .font(.system(size: 14, weight: .regular))
+                                .scaledFont(size: 14, weight: .semibold)
+                                .foregroundColor(.primary)
                                 .lineLimit(1)
-                                .hoverPrimaryForeground(isHovered: isHovered)
                             
                             if isTabSelected() {
                                 Text("Current")
+                                    .scaledFont(.footnote)
                                     .foregroundStyle(.secondary)
                             }
                             
@@ -185,7 +193,8 @@ struct ChatHistoryItemView: View {
                         HStack(spacing: 0) {
                             Text(formatDate(previewInfo.updatedAt))
                                 .frame(alignment: .leading)
-                                .font(.system(size: 13, weight: .thin))
+                                .scaledFont(size: 13, weight: .regular)
+                                .foregroundColor(.secondary)
                                 .lineLimit(1)
                             
                             Spacer()
@@ -202,6 +211,8 @@ struct ChatHistoryItemView: View {
                             }
                         }) {
                             Image(systemName: "trash")
+                                .foregroundColor(.primary)
+                                .scaledFont(.body)
                                 .opacity(isHovered ? 1 : 0)
                         }
                         .buttonStyle(HoverButtonStyle())
@@ -212,10 +223,20 @@ struct ChatHistoryItemView: View {
                 .padding(.horizontal, 12)
             }
             .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
             .onHover(perform: {
                 isHovered = $0
             })
-            .hoverRadiusBackground(isHovered: isHovered, cornerRadius: 4)
+            .hoverRadiusBackground(
+                isHovered: isHovered,
+                hoverColor: Color(
+                    nsColor: .controlColor
+                        .withAlphaComponent(colorScheme == .dark ? 0.1 : 0.55)
+                ),
+                cornerRadius: 8,
+                showBorder: isHovered,
+                borderColor: Color(nsColor: .separatorColor)
+            )
             .onTapGesture {
                 Task { @MainActor in
                     await store.send(.chatHistoryItemClicked(id: previewInfo.id)).finish()

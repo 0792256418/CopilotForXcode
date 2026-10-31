@@ -1,12 +1,20 @@
-# <img align="center" height="70" src="./Docs/AppIcon.png"/> GitHub Copilot for Xcode
+# <img align="center" height="70" src="./Docs/Images/AppIcon.png"/> GitHub Copilot for Xcode
 
-[GitHub Copilot](https://github.com/features/copilot) is an AI pair programmer
-tool that helps you write code faster and smarter. Copilot for Xcode is an Xcode extension that provides inline coding suggestions as you type and a chat assistant to answer your coding questions.
+[GitHub Copilot](https://github.com/features/copilot) for Xcode is the leading AI coding assistant for Swift, Objective-C and iOS/macOS development. It delivers intelligent Completions, Chat, and Code Review—plus advanced features like Agent Mode, Next Edit Suggestions, MCP Registry, and Copilot Vision to make Xcode development faster and smarter.
+
+> [!IMPORTANT]  
+> Starting from version v0.50.0, we have added internal support for the upcoming usage-based billing experience, including experience updates to the usage panel, usage notifications, and model picker. These changes will become visible once usage-based billing is rolled out. 
+> 
+> To ensure compatibility with the new billing experience, we strongly recommend upgrading to the latest plugin version as soon as possible: 
+> 
+> * **GitHub Copilot for Xcode: v0.50.0 or later**
+> 
+> Clients using older plugin versions will continue to function. However, the billing and usage experience may not be optimal and may not accurately reflect the latest usage-based billing experience. 
 
 ## Chat
 
 GitHub Copilot Chat provides suggestions to your specific coding tasks via chat.
-<img alt="Chat of GitHub Copilot for Xcode" src="./Docs/chat_dark.gif" width="800" />
+<img alt="Chat of GitHub Copilot for Xcode" src="./Docs/Images/chat_agent.gif" width="800" />
 
 ## Agent Mode
 
@@ -23,13 +31,13 @@ Agent Mode integrates with Xcode's environment, creating a seamless development 
 ## Code Completion
 
 You can receive auto-complete type suggestions from GitHub Copilot either by starting to write the code you want to use, or by writing a natural language comment describing what you want the code to do.
-<img alt="Code Completion of GitHub Copilot for Xcode" src="./Docs/demo.gif" width="800" />
+<img alt="Code Completion of GitHub Copilot for Xcode" src="./Docs/Images/demo.gif" width="800" />
 
 ## Requirements
 
-- macOS 12+
-- Xcode 8+
-- A GitHub Copilot subscription. To learn more, visit [https://github.com/features/copilot](https://github.com/features/copilot).
+- macOS 13+
+- Xcode 14+
+- A GitHub account
 
 ## Getting Started
 
@@ -44,20 +52,20 @@ You can receive auto-complete type suggestions from GitHub Copilot either by sta
    Drag `GitHub Copilot for Xcode` into the `Applications` folder:
 
    <p align="center">
-     <img alt="Screenshot of opened dmg" src="./Docs/dmg-open.png" width="512" />
+     <img alt="Screenshot of opened dmg" src="./Docs/Images/dmg-open.png" width="512" />
    </p>
 
    Updates can be downloaded and installed by the app.
 
 1. Open the `GitHub Copilot for Xcode` application (from the `Applications` folder). Accept the security warning.
    <p align="center">
-     <img alt="Screenshot of MacOS download permission request" src="./Docs/macos-download-open-confirm.png" width="350" />
+     <img alt="Screenshot of MacOS download permission request" src="./Docs/Images/macos-download-open-confirm.png" width="350" />
    </p>
 
 
 1. A background item will be added to enable the GitHub Copilot for Xcode extension app to connect to the host app. This permission is usually automatically added when first launching the app.
    <p align="center">
-     <img alt="Screenshot of background item" src="./Docs/background-item.png" width="370" />
+     <img alt="Screenshot of background item" src="./Docs/Images/background-item.png" width="370" />
    </p>
 
 1. Three permissions are required for GitHub Copilot for Xcode to function properly: `Background`, `Accessibility`, and `Xcode Source Editor Extension`. For more details on why these permissions are required see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
@@ -65,7 +73,7 @@ You can receive auto-complete type suggestions from GitHub Copilot either by sta
    The first time the application is run the `Accessibility` permission should be requested:
 
    <p align="center">
-     <img alt="Screenshot of accessibility permission request" src="./Docs/accessibility-permission-request.png" width="529" />
+     <img alt="Screenshot of accessibility permission request" src="./Docs/Images/accessibility-permission-request.png" width="529" />
    </p>
 
    The `Xcode Source Editor Extension` permission needs to be enabled manually. Click
@@ -74,7 +82,7 @@ You can receive auto-complete type suggestions from GitHub Copilot either by sta
    and enable `GitHub Copilot`:
 
    <p align="center">
-     <img alt="Screenshot of extension permission" src="./Docs/extension-permission.png" width="582" />
+     <img alt="Screenshot of extension permission" src="./Docs/Images/extension-permission.png" width="582" />
    </p>
 
 1. After granting the extension permission, open Xcode. Verify that the
@@ -82,7 +90,7 @@ You can receive auto-complete type suggestions from GitHub Copilot either by sta
    menu.
     <br>
     <p align="center">
-      <img alt="Screenshot of Xcode Editor GitHub Copilot menu item" src="./Docs/xcode-menu.png" width="648" />
+      <img alt="Screenshot of Xcode Editor GitHub Copilot menu item" src="./Docs/Images/xcode-menu.png" width="648" />
     </p>
 
     Keyboard shortcuts can be set for all menu items in the `Key Bindings`
@@ -90,7 +98,7 @@ You can receive auto-complete type suggestions from GitHub Copilot either by sta
 
 1. To sign into GitHub Copilot, click the `Sign in` button in the settings application. This will open a browser window and copy a code to the clipboard. Paste the code into the GitHub login page and authorize the application.
     <p align="center">
-      <img alt="Screenshot of sign-in popup" src="./Docs/device-code.png" width="372" />
+      <img alt="Screenshot of sign-in popup" src="./Docs/Images/device-code.png" width="372" />
     </p>
 
 1. To install updates, click `Check for Updates` from the menu item or in the
@@ -115,13 +123,13 @@ You can receive auto-complete type suggestions from GitHub Copilot either by sta
    Open Copilot Chat in GitHub Copilot.
   - Open via the Xcode menu `Xcode -> Editor -> GitHub Copilot -> Open Chat`.
   <p align="center">
-    <img alt="Screenshot of Xcode Editor GitHub Copilot menu item" src="./Docs/xcode-menu_dark.png" width="648" />
+    <img alt="Screenshot of Xcode Editor GitHub Copilot menu item" src="./Docs/Images/xcode-menu_dark.png" width="648" />
   </p>
 
   - Open via GitHub Copilot app menu `Open Chat`.
 
   <p align="center">
-    <img alt="Screenshot of GitHub Copilot menu item" src="./Docs/copilot-menu_dark.png" width="244" />
+    <img alt="Screenshot of GitHub Copilot menu item" src="./Docs/Images/copilot-menu_dark.png" width="244" />
   </p>
 
 ## How to use Code Completion
@@ -146,7 +154,7 @@ Copilot for Xcode.
 
 We’d love to get your help in making GitHub Copilot better!  If you have
 feedback or encounter any problems, please reach out on our [Feedback
-forum](https://github.com/orgs/community/discussions/categories/copilot).
+forum](https://github.com/github/CopilotForXcode/discussions).
 
 ## Acknowledgements
 

@@ -1,7 +1,9 @@
 import JSONRPC
+import AppKit
 import ConversationServiceProvider
 import Foundation
 import Logger
+import ChatAPIService
 
 public class CreateFileTool: ICopilotTool {
     public static let name = ToolName.createFile
@@ -9,7 +11,6 @@ public class CreateFileTool: ICopilotTool {
     public func invokeTool(
         _ request: InvokeClientToolRequest,
         completion: @escaping (AnyJSONRPCResponse) -> Void,
-        chatHistoryUpdater: ChatHistoryUpdater?,
         contextProvider: (any ToolContextProvider)?
     ) -> Bool {
         guard let params = request.params,
@@ -25,13 +26,18 @@ public class CreateFileTool: ICopilotTool {
         
         guard !FileManager.default.fileExists(atPath: filePath)
         else {
+            Logger.client.info("CreateFileTool: File already exists at \(filePath)")
             completeResponse(request, status: .error, response: "File already exists at \(filePath)", completion: completion)
             return true
         }
         
         do {
+            // Create intermediate directories if they don't exist
+            let parentDirectory = fileURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true, attributes: nil)
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
         } catch {
+            Logger.client.error("CreateFileTool: Failed to write content to file at \(filePath): \(error)")
             completeResponse(request, status: .error, response: "Failed to write content to file: \(error)", completion: completion)
             return true
         }
@@ -39,18 +45,21 @@ public class CreateFileTool: ICopilotTool {
         guard FileManager.default.fileExists(atPath: filePath),
               let writtenContent = try? String(contentsOf: fileURL, encoding: .utf8)
         else {
+            Logger.client.info("CreateFileTool: Failed to verify file creation at \(filePath)")
             completeResponse(request, status: .error, response: "Failed to verify file creation.", completion: completion)
             return true
         }
         
-        contextProvider?.updateFileEdits(by: .init(
+        let fileEdit: FileEdit = .init(
             fileURL: URL(fileURLWithPath: filePath),
             originalContent: "",
             modifiedContent: writtenContent,
             toolName: CreateFileTool.name
-        ))
+        )
         
-        Utils.openFileInXcode(fileURL: URL(fileURLWithPath: filePath)) { _, error in
+        contextProvider?.updateFileEdits(by: fileEdit)
+        
+        NSWorkspace.openFileInXcode(fileURL: URL(fileURLWithPath: filePath)) { _, error in
             if let error = error {
                 Logger.client.info("Failed to open file at \(filePath), \(error)")
             }
@@ -71,9 +80,7 @@ public class CreateFileTool: ICopilotTool {
             )
         ]
 
-        if let chatHistoryUpdater {
-            chatHistoryUpdater(params.turnId, editAgentRounds)
-        }
+        contextProvider?.updateChatHistory(params.turnId, editAgentRounds: editAgentRounds, fileEdits: [fileEdit])
         
         completeResponse(
             request,

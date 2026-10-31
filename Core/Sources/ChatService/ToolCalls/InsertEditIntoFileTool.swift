@@ -6,6 +6,35 @@ import Foundation
 import JSONRPC
 import Logger
 import XcodeInspector
+import ChatAPIService
+import SystemUtils
+import Workspace
+
+public enum InsertEditError: LocalizedError {
+    case missingEditorElement(file: URL)
+    case openingApplicationUnavailable
+    case fileNotOpenedInXcode
+    case fileURLMismatch(expected: URL, actual: URL?)
+    case fileNotAccessible(URL)
+    case fileHasUnsavedChanges(URL)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .missingEditorElement(let file):
+            return "Could not find source editor element for file \(file.lastPathComponent)."
+        case .openingApplicationUnavailable:
+            return "Failed to get the application that opened the file."
+        case .fileNotOpenedInXcode:
+            return "The file is not currently opened in Xcode."
+        case .fileURLMismatch(let expected, let actual):
+            return "The currently focused file URL \(actual?.lastPathComponent ?? "unknown") does not match the expected file URL \(expected.lastPathComponent)."
+        case .fileNotAccessible(let fileURL):
+            return "The file \(fileURL.lastPathComponent) is not accessible."
+        case .fileHasUnsavedChanges(let fileURL):
+            return "The file \(fileURL.lastPathComponent) seems to have unsaved changes in Xcode. Please save the file and try again."
+        }
+    }
+}
 
 public class InsertEditIntoFileTool: ICopilotTool {
     public static let name = ToolName.insertEditIntoFile
@@ -13,7 +42,6 @@ public class InsertEditIntoFileTool: ICopilotTool {
     public func invokeTool(
         _ request: InvokeClientToolRequest,
         completion: @escaping (AnyJSONRPCResponse) -> Void,
-        chatHistoryUpdater: ChatHistoryUpdater?,
         contextProvider: (any ToolContextProvider)?
     ) -> Bool {
         guard let params = request.params,
@@ -30,7 +58,7 @@ public class InsertEditIntoFileTool: ICopilotTool {
             let fileURL = URL(fileURLWithPath: filePath)
             let originalContent = try String(contentsOf: fileURL, encoding: .utf8)
             
-            InsertEditIntoFileTool.applyEdit(for: fileURL, content: code, contextProvider: contextProvider) { newContent, error in
+            InsertEditIntoFileTool.applyEdit(for: fileURL, content: code) { newContent, error in
                 if let error = error {
                     self.completeResponse(
                         request,
@@ -47,9 +75,8 @@ public class InsertEditIntoFileTool: ICopilotTool {
                     return
                 }
                 
-                contextProvider.updateFileEdits(
-                    by: .init(fileURL: fileURL, originalContent: originalContent, modifiedContent: code, toolName: InsertEditIntoFileTool.name)
-                )
+                let fileEdit: FileEdit = .init(fileURL: fileURL, originalContent: originalContent, modifiedContent: code, toolName: InsertEditIntoFileTool.name)
+                contextProvider.updateFileEdits(by: fileEdit)
                 
                 let editAgentRounds: [AgentRound] = [
                     .init(
@@ -66,9 +93,8 @@ public class InsertEditIntoFileTool: ICopilotTool {
                     )
                 ]
                 
-                if let chatHistoryUpdater {
-                    chatHistoryUpdater(params.turnId, editAgentRounds)
-                }
+                contextProvider
+                    .updateChatHistory(params.turnId, editAgentRounds: editAgentRounds, fileEdits: [fileEdit])
                 
                 self.completeResponse(request, response: newContent, completion: completion)
             }
@@ -86,19 +112,14 @@ public class InsertEditIntoFileTool: ICopilotTool {
     }
     
     public static func applyEdit(
-        for fileURL: URL, 
-        content: String, 
-        contextProvider: any ToolContextProvider, 
+        for fileURL: URL,
+        content: String,
         xcodeInstance: AppInstanceInspector
     ) throws -> String {
-        // Get the focused element directly from the app (like XcodeInspector does)
-        guard let focusedElement: AXUIElement = try? xcodeInstance.appElement.copyValue(key: kAXFocusedUIElementAttribute)
+        guard let editorElement = Self.getEditorElement(by: xcodeInstance, for: fileURL)
         else {
-            throw NSError(domain: "Failed to access xcode element", code: 0)
+            throw InsertEditError.missingEditorElement(file: fileURL)
         }
-        
-        // Find the source editor element using XcodeInspector's logic
-        let editorElement = try findSourceEditorElement(from: focusedElement, xcodeInstance: xcodeInstance)
         
         // Check if element supports kAXValueAttribute before reading
         var value: String = ""
@@ -113,10 +134,9 @@ public class InsertEditIntoFileTool: ICopilotTool {
         
         let lines = value.components(separatedBy: .newlines)
         
-        var isInjectedSuccess = false
-        var injectionError: Error?
-        
         do {
+            try Self.checkOpenedFileURL(for: fileURL, xcodeInstance: xcodeInstance)
+                    
             try AXHelper().injectUpdatedCodeWithAccessibilityAPI(
                 .init(
                     content: content,
@@ -128,121 +148,158 @@ public class InsertEditIntoFileTool: ICopilotTool {
                         .inserted(0, [content])
                     ]
                 ),
-                focusElement: editorElement,
-                onSuccess: {
-                    Logger.client.info("Content injection succeeded")
-                    isInjectedSuccess = true
-                },
-                onError: {
-                    Logger.client.error("Content injection failed in onError callback")
-                }
+                focusElement: editorElement
             )
         } catch {
-            Logger.client.error("Content injection threw error: \(error)")
-            if let axError = error as? AXError {
-                Logger.client.error("AX Error code during injection: \(axError.rawValue)")
-            }
-            injectionError = error
-        }
-        
-        if !isInjectedSuccess {
-            let errorMessage = injectionError?.localizedDescription ?? "Failed to apply edit"
-            Logger.client.error("Edit application failed: \(errorMessage)")
-            throw NSError(domain: "Failed to apply edit: \(errorMessage)", code: 0)
+            Logger.client.error("Failed to inject code for insert edit into file: \(error.localizedDescription)")
+            throw error
         }
         
         // Verify the content was applied by reading it back
-        do {
-            let newContent: String = try editorElement.copyValue(key: kAXValueAttribute)
-            Logger.client.info("Successfully read back new content, length: \(newContent.count)")
-            return newContent
-        } catch {
-            Logger.client.error("Failed to read back new content: \(error)")
-            if let axError = error as? AXError {
-                Logger.client.error("AX Error code when reading back: \(axError.rawValue)")
-            }
-            throw error
-        }
-    }
-    
-    private static func findSourceEditorElement(
-        from element: AXUIElement, 
-        xcodeInstance: AppInstanceInspector,
-        shouldRetry: Bool = true
-    ) throws -> AXUIElement {
-        // 1. Check if the current element is a source editor
-        if element.isSourceEditor {
-            return element
-        }
-        
-        // 2. Search for child that is a source editor
-        if let sourceEditorChild = element.firstChild(where: \.isSourceEditor) {
-            return sourceEditorChild
-        }
-        
-        // 3. Search for parent that is a source editor (XcodeInspector's approach)
-        if let sourceEditorParent = element.firstParent(where: \.isSourceEditor) {
-            return sourceEditorParent
-        }
-        
-        // 4. Search for parent that is an editor area
-        if let editorAreaParent = element.firstParent(where: \.isEditorArea) {
-            // 3.1 Search for child that is a source editor
-            if let sourceEditorChild = editorAreaParent.firstChild(where: \.isSourceEditor) {
-                return sourceEditorChild
-            }
-        }
-        
-        // 5. Search for the workspace window
-        if let xcodeWorkspaceWindowParent = element.firstParent(where: \.isXcodeWorkspaceWindow) {
-            // 4.1 Search for child that is an editor area
-            if let editorAreaChild = xcodeWorkspaceWindowParent.firstChild(where: \.isEditorArea) {
-                // 4.2 Search for child that is a source editor
-                if let sourceEditorChild = editorAreaChild.firstChild(where: \.isSourceEditor) {
-                    return sourceEditorChild
-                }
-            }
-        }
-        
-        // 6. retry
-        if shouldRetry {
-            Thread.sleep(forTimeInterval: 1)
-            return try findSourceEditorElement(from: element, xcodeInstance: xcodeInstance, shouldRetry: false)
-        }
-        
-        
-        throw NSError(domain: "Could not find source editor element", code: 0)
+        return try Self.getCurrentEditorContent(for: fileURL, by: xcodeInstance)
     }
     
     public static func applyEdit(
-        for fileURL: URL, 
-        content: String, 
-        contextProvider: any ToolContextProvider,
+        for fileURL: URL,
+        content: String,
         completion: ((String?, Error?) -> Void)? = nil
     ) {
-        Utils.openFileInXcode(fileURL: fileURL) { app, error in
+        if SystemUtils.isDeveloperMode || SystemUtils.isPrereleaseBuild {
+            /// Experimental solution: Use file system write for better reliability. Only enable in dev mode or prerelease builds.
+            Self.applyEditWithFileSystem(
+                for: fileURL,
+                content: content,
+                completion: completion
+            )
+        } else {
+            Self.applyEditWithAccessibilityAPI(
+                for: fileURL,
+                content: content,
+                completion: completion
+            )
+        }
+    }
+    
+    /// Get the source editor element with retries for specific file URL
+    private static func getEditorElement(
+        by xcodeInstance: AppInstanceInspector,
+        for fileURL: URL,
+        retryTimes: Int = 6,
+        delay: TimeInterval = 0.5
+    ) -> AXUIElement? {
+        var remainingAttempts = max(1, retryTimes)
+        
+        while remainingAttempts > 0 {
+            guard let realtimeURL = xcodeInstance.appElement.realtimeDocumentURL,
+                  realtimeURL == fileURL,
+                  let focusedElement = xcodeInstance.appElement.focusedElement,
+                  let editorElement = focusedElement.findSourceEditorElement()
+            else {
+                if remainingAttempts > 1 {
+                    Thread.sleep(forTimeInterval: delay)
+                }
+                
+                remainingAttempts -= 1
+                continue
+            }
+            
+            return editorElement
+        }
+        
+        Logger.client.error("Editor element not found for \(fileURL.lastPathComponent) after \(retryTimes) attempts.")
+        return nil
+    }
+
+    // Check if current opened file is the target URL
+    private static func checkOpenedFileURL(
+        for fileURL: URL,
+        xcodeInstance: AppInstanceInspector
+    ) throws {
+        let realtimeDocumentURL = xcodeInstance.realtimeDocumentURL
+        
+        if realtimeDocumentURL != fileURL {
+            throw InsertEditError.fileURLMismatch(expected: fileURL, actual: realtimeDocumentURL)
+        }
+    }
+    
+    private static func getCurrentEditorContent(for fileURL: URL, by xcodeInstance: AppInstanceInspector) throws -> String {
+        guard let editorElement = getEditorElement(by: xcodeInstance, for: fileURL, retryTimes: 1)
+        else {
+            throw InsertEditError.missingEditorElement(file: fileURL)
+        }
+        
+        return try editorElement.copyValue(key: kAXValueAttribute)
+    }
+}
+
+private extension AppInstanceInspector {
+    var realtimeDocumentURL: URL? {
+        appElement.realtimeDocumentURL
+    }
+}
+
+extension InsertEditIntoFileTool {
+    static func applyEditWithFileSystem(
+        for fileURL: URL,
+        content: String,
+        completion: ((String?, Error?) -> Void)? = nil
+    ) {
+        do {
+            guard let diskFileContent = try? String(contentsOf: fileURL) else {
+                throw InsertEditError.fileNotAccessible(fileURL)
+            }
+            
+            if let focusedElement = XcodeInspector.shared.focusedElement,
+               focusedElement.isNonNavigatorSourceEditor,
+               focusedElement.realtimeDocumentURL == fileURL,
+               focusedElement.value != diskFileContent
+            {
+                throw InsertEditError.fileHasUnsavedChanges(fileURL)
+            }
+            
+            // write content to disk
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            
+            Task { @WorkspaceActor in
+                await WorkspaceInvocationCoordinator().invokeFilespaceUpdate(fileURL: fileURL, content: content)
+                if let completion = completion { completion(content, nil) }
+            }
+        } catch {
+            if let completion = completion { completion(nil, error) }
+            Logger.client.info("Failed to apply edit for file at \(fileURL), \(error)")
+        }
+    }
+    
+    static func applyEditWithAccessibilityAPI(
+        for fileURL: URL,
+        content: String,
+        completion: ((String?, Error?) -> Void)? = nil,
+    ) {
+        NSWorkspace.openFileInXcode(fileURL: fileURL) { app, error in
             do {
                 if let error = error { throw error }
                 
                 guard let app = app
                 else {
-                    throw NSError(domain: "Failed to get the app that opens file.", code: 0)
+                    throw InsertEditError.openingApplicationUnavailable
                 }
                 
                 let appInstanceInspector = AppInstanceInspector(runningApplication: app)
                 guard appInstanceInspector.isXcode
                 else {
-                    throw NSError(domain: "The file is not opened in Xcode.", code: 0)
+                    throw InsertEditError.fileNotOpenedInXcode
                 }
                 
                 let newContent = try applyEdit(
                     for: fileURL,
                     content: content,
-                    contextProvider: contextProvider,
                     xcodeInstance: appInstanceInspector
                 )
                 
-                if let completion = completion { completion(newContent, nil) }
+                Task {
+                    await WorkspaceInvocationCoordinator().invokeFilespaceUpdate(fileURL: fileURL, content: newContent)
+                    if let completion = completion { completion(newContent, nil) }
+                }
             } catch {
                 if let completion = completion { completion(nil, error) }
                 Logger.client.info("Failed to apply edit for file at \(fileURL), \(error)")

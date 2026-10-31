@@ -14,6 +14,11 @@ enum Style {
     static let widgetPadding: Double = 4
     static let chatWindowTitleBarHeight: Double = 24
     static let trafficLightButtonSize: Double = 12
+    static let codeReviewPanelWidth: Double = 550
+    static let codeReviewPanelHeight: Double = 450
+    static let fixPanelToAnnotationSpacing: Double = 1
+    static let nesSuggestionMenuLeadingPadding: Double = 4
+    static let agentConfigurationWidgetLeadingSpacing: Double = 4
 }
 
 extension Color {
@@ -55,7 +60,7 @@ struct XcodeLikeFrame<Content: View>: View {
         content.clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Material.bar)
+                    .fill(Color.chatWindowBackgroundColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: max(0, cornerRadius), style: .continuous)
@@ -70,8 +75,9 @@ struct XcodeLikeFrame<Content: View>: View {
 }
 
 extension View {
-    func xcodeStyleFrame(cornerRadius: Double? = nil) -> some View {
-        XcodeLikeFrame(content: self, cornerRadius: cornerRadius ?? 10)
+    var xcodeStyleCornerRadius: Double { 16 }
+    func xcodeStyleFrame() -> some View {
+        XcodeLikeFrame(content: self, cornerRadius: xcodeStyleCornerRadius)
     }
 }
 
